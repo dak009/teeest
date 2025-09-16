@@ -1,20 +1,24 @@
 import streamlit as st
-from PyPDF2 import PdfMerger
-import time
+from PIL import Image
 import io
+import time
 
-st.title("📑 PDF 병합기 (모바일 지원 버전)")
+st.title("🖼️ 이미지 → PDF 변환기 (모바일 지원)")
 
-# 세션 상태에 업로드 기록 저장
+# 세션 상태 초기화
 if "uploads" not in st.session_state:
     st.session_state.uploads = []
 
-# 여러 파일 업로드 가능
-uploaded_files = st.file_uploader("여러 PDF 파일을 업로드하세요", type=["pdf"], accept_multiple_files=True)
+# 여러 이미지 업로드
+uploaded_files = st.file_uploader(
+    "여러 장의 JPG/PNG 이미지를 업로드하세요",
+    type=["jpg", "jpeg", "png"],
+    accept_multiple_files=True
+)
 
 if uploaded_files:
     for f in uploaded_files:
-        # 동일 파일명이 중복 저장되지 않도록 체크
+        # 중복 파일 방지
         if f.name not in [x["name"] for x in st.session_state.uploads]:
             st.session_state.uploads.append({
                 "name": f.name,
@@ -22,26 +26,28 @@ if uploaded_files:
                 "ts": time.time()   # 업로드 시각 기록
             })
 
-    # 업로드된 시간(ts) 기준으로 정렬
+    # 업로드 순서대로 정렬
     files_sorted = sorted(st.session_state.uploads, key=lambda x: x["ts"])
 
     st.subheader("📂 병합 순서")
     st.write([f["name"] for f in files_sorted])
 
-    if st.button("📌 병합하기"):
-        merger = PdfMerger()
+    if st.button("📌 PDF 만들기"):
+        images = []
         for f in files_sorted:
-            merger.append(f["file"])
+            image = Image.open(f["file"]).convert("RGB")
+            images.append(image)
 
-        # 병합된 결과를 메모리 버퍼에 저장
+        # 첫 번째 이미지를 기준으로 PDF 생성
         output_pdf = io.BytesIO()
-        merger.write(output_pdf)
-        merger.close()
+        images[0].save(
+            output_pdf, format="PDF", save_all=True, append_images=images[1:]
+        )
         output_pdf.seek(0)
 
         # 다운로드 버튼 제공
         st.download_button(
-            label="⬇️ 병합된 PDF 다운로드",
+            label="⬇️ PDF 다운로드",
             data=output_pdf,
             file_name="merged.pdf",
             mime="application/pdf"
